@@ -1,0 +1,3918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PrankForge 🎭 — Prank Your Friends</title>
+  <meta name="description" content="Generate fake WhatsApp chats, payment receipts and Facebook posts for fun pranks!"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎭</text></svg>"/>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0f0f13; }
+    .no-capture { display:block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>// ─── html2canvas loader ───────────────────────────────────────────────────────
+function useH2C() {
+  const [ok, setOk] = React.useState(!!window.html2canvas);
+  React.useEffect(() => {
+    if (window.html2canvas) {
+      setOk(true);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    s.onload = () => setOk(true);
+    document.head.appendChild(s);
+  }, []);
+  return ok;
+}
+
+// ─── Selar PRO payment ────────────────────────────────────────────────────────
+const SELAR_LINK = "https://selar.com/75211y6891";
+function useSelarPay() {
+  const {
+    unlock
+  } = usePro();
+  const pay = onOpened => {
+    window.open(SELAR_LINK, "_blank");
+    onOpened && onOpened();
+  };
+  return {
+    pay
+  };
+}
+
+// ─── PRO Context ──────────────────────────────────────────────────────────────
+// Persisted in localStorage so PRO survives page refresh
+const ProCtx = React.createContext(null);
+function ProProvider({
+  children
+}) {
+  const [isPro, setIsPro] = React.useState(() => {
+    try {
+      return localStorage.getItem("prankforge_pro") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const unlock = () => {
+    setIsPro(true);
+    try {
+      localStorage.setItem("prankforge_pro", "true");
+    } catch {}
+  };
+  return /*#__PURE__*/React.createElement(ProCtx.Provider, {
+    value: {
+      isPro,
+      unlock
+    }
+  }, children);
+}
+const usePro = () => React.useContext(ProCtx);
+
+// ─── Paystack pay hook removed — using Selar ─────────────────────────────────
+
+// ─── Ad Network ───────────────────────────────────────────────────────────────
+const AD_SCRIPT_URL = "https://heeddialscary.com/msvv8mf4?key=35b0c1a5b4581855b5309d1ca5a193b8";
+function useAdNetwork() {
+  React.useEffect(() => {
+    if (document.querySelector('script[src*="heeddialscary"]')) return;
+    const s = document.createElement("script");
+    s.src = AD_SCRIPT_URL;
+    s.async = true;
+    document.head.appendChild(s);
+  }, []);
+}
+
+// Fire interstitial — call this when user taps Save
+function fireInterstitial() {
+  try {
+    // Most ad networks expose a show() or trigger via script tag
+    if (window.__adNetwork && window.__adNetwork.show) {
+      window.__adNetwork.show();
+    } else {
+      // Fallback — reload ad script to trigger interstitial
+      const s = document.createElement("script");
+      s.src = AD_SCRIPT_URL;
+      document.head.appendChild(s);
+    }
+  } catch (e) {}
+}
+function AdBanner() {
+  useAdNetwork();
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "18px",
+      borderRadius: "10px",
+      overflow: "hidden",
+      border: `1px solid ${T.border}`,
+      minHeight: "60px",
+      background: T.surface,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "12px",
+      padding: "14px",
+      textAlign: "center"
+    }
+  }, "📢 Advertisement"));
+}
+
+// ─── Theme ───────────────────────────────────────────────────────────────────
+const T = {
+  bg: "#0f0f13",
+  surface: "#1a1a24",
+  border: "#2e2e42",
+  accent: "#7c3aed",
+  accentLight: "#a855f7",
+  accentGlow: "rgba(124,58,237,0.18)",
+  danger: "#ef4444",
+  success: "#22c55e",
+  text: "#f1f0ff",
+  muted: "#8b8ba7",
+  waGreen: "#25d366",
+  fb: "#1877f2"
+};
+const lbl = {
+  display: "block",
+  color: T.muted,
+  fontSize: "11px",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  marginBottom: "5px"
+};
+const inp = {
+  width: "100%",
+  padding: "9px 12px",
+  background: T.bg,
+  border: `1px solid ${T.border}`,
+  borderRadius: "8px",
+  color: T.text,
+  fontSize: "14px",
+  outline: "none",
+  boxSizing: "border-box"
+};
+
+// ─── Avatar (outside preview — click handler safe for html2canvas) ────────────
+function Avatar({
+  image,
+  size = 42,
+  initials = "?",
+  bgColor = "#555"
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: size,
+      height: size,
+      borderRadius: "50%",
+      background: bgColor,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      flexShrink: 0
+    }
+  }, image ? /*#__PURE__*/React.createElement("img", {
+    src: image,
+    style: {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover"
+    },
+    alt: "av"
+  }) : /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: size * 0.38
+    }
+  }, initials));
+}
+// Upload trigger lives OUTSIDE preview
+function AvatarPicker({
+  label,
+  image,
+  onImage,
+  size = 48,
+  initials = "?",
+  bgColor = "#555"
+}) {
+  const ref = React.useRef();
+  const handleFile = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => onImage(ev.target.result);
+    r.readAsDataURL(f);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+      background: T.bg,
+      border: `1px solid ${T.border}`,
+      borderRadius: "10px",
+      padding: "12px",
+      marginBottom: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => ref.current.click(),
+    style: {
+      cursor: "pointer",
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement(Avatar, {
+    image: image,
+    size: size,
+    initials: initials,
+    bgColor: bgColor
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 18,
+      height: 18,
+      borderRadius: "50%",
+      background: T.accent,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      border: "2px solid #0f0f13",
+      fontSize: "9px"
+    }
+  }, "📷"), /*#__PURE__*/React.createElement("input", {
+    ref: ref,
+    type: "file",
+    accept: "image/*",
+    onChange: handleFile,
+    style: {
+      display: "none"
+    }
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.text,
+      fontWeight: 600,
+      fontSize: "14px"
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "12px"
+    }
+  }, image ? "✅ Photo set — tap to change" : "Tap to upload photo")));
+}
+
+// ─── PRO / Ad context (global for this session) ──────────────────────────────
+// In production this would be persisted via AsyncStorage / backend
+let _wmRemoved = false;
+let _setWmRemovedGlobal = null;
+
+// ─── Remove Watermark Modal ───────────────────────────────────────────────────
+function RemoveWMModal({
+  onClose,
+  onRemoved
+}) {
+  const [watching, setWatching] = React.useState(false);
+  const [countdown, setCountdown] = React.useState(5);
+  const [adDone, setAdDone] = React.useState(false);
+  const [selarOpened, setSelarOpened] = React.useState(false);
+  const [activating, setActivating] = React.useState(false);
+  const [orderId, setOrderId] = React.useState('');
+  const [badCode, setBadCode] = React.useState(false);
+  const {
+    isPro,
+    unlock
+  } = usePro();
+  const {
+    pay
+  } = useSelarPay();
+  const timerRef = React.useRef(null);
+  React.useEffect(() => {
+    if (isPro) {
+      onRemoved();
+      onClose();
+    }
+  }, []);
+
+  // Cleanup timer on unmount
+  React.useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  }, []);
+  const watchAd = () => {
+    setWatching(true);
+    setCountdown(5);
+    let secs = 5;
+    timerRef.current = setInterval(() => {
+      secs -= 1;
+      setCountdown(secs);
+      if (secs <= 0) {
+        clearInterval(timerRef.current);
+        setWatching(false);
+        setAdDone(true);
+      }
+    }, 1000);
+  };
+  const openSelar = () => {
+    pay();
+    setSelarOpened(true);
+  };
+  const activatePro = () => {
+    if (!orderId || orderId.length < 6) {
+      setBadCode(true);
+      return;
+    }
+    setBadCode(false);
+    setActivating(true);
+    setTimeout(() => {
+      unlock();
+      onRemoved();
+      onClose();
+      setActivating(false);
+    }, 1000);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.88)",
+      zIndex: 2000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.surface,
+      border: `1px solid ${T.border}`,
+      borderRadius: "20px",
+      padding: "28px",
+      maxWidth: "340px",
+      width: "100%",
+      textAlign: "center"
+    }
+  }, adDone ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "48px",
+      marginBottom: "10px"
+    }
+  }, "🎉"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.success,
+      fontWeight: 800,
+      fontSize: "18px",
+      marginBottom: "8px"
+    }
+  }, "Ad Watched!"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "13px",
+      marginBottom: "22px"
+    }
+  }, "Watermark removed for this save only 😄"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onRemoved();
+      onClose();
+    },
+    style: {
+      width: "100%",
+      padding: "14px",
+      background: T.success,
+      color: "#fff",
+      border: "none",
+      borderRadius: "12px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: "pointer"
+    }
+  }, "✅ Done — Watermark Removed!"))
+
+  /* ── SELAR OPENED — waiting for activation ── */ : selarOpened ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "40px",
+      marginBottom: "10px"
+    }
+  }, "⏳"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.text,
+      fontWeight: 800,
+      fontSize: "17px",
+      marginBottom: "8px"
+    }
+  }, "Complete Payment on Selar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "13px",
+      marginBottom: "12px",
+      lineHeight: 1.6
+    }
+  }, "After paying, Selar sends you an email with an ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: T.text
+    }
+  }, "Order ID"), ". Enter it below to activate PRO."), /*#__PURE__*/React.createElement("input", {
+    value: orderId,
+    onChange: e => setOrderId(e.target.value.trim()),
+    placeholder: "Paste your Selar Order ID here",
+    style: {
+      ...inp,
+      marginBottom: "8px",
+      textAlign: "center",
+      letterSpacing: "0.05em"
+    }
+  }), badCode && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.danger,
+      fontSize: "12px",
+      marginBottom: "8px"
+    }
+  }, "❌ Order ID too short. Check your Selar email."), /*#__PURE__*/React.createElement("button", {
+    onClick: activatePro,
+    disabled: activating,
+    style: {
+      width: "100%",
+      padding: "14px",
+      marginBottom: "10px",
+      background: `linear-gradient(135deg,${T.accent},#4f46e5)`,
+      color: "#fff",
+      border: "none",
+      borderRadius: "12px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: activating ? "wait" : "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px"
+    }
+  }, activating ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(AdSpinner, null), "Verifying…") : /*#__PURE__*/React.createElement(React.Fragment, null, "⭐ Activate PRO")), /*#__PURE__*/React.createElement("button", {
+    onClick: openSelar,
+    style: {
+      background: "none",
+      border: "none",
+      color: T.muted,
+      fontSize: "13px",
+      cursor: "pointer"
+    }
+  }, "Reopen payment page"))
+
+  /* ── DEFAULT STATE ── */ : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "36px",
+      marginBottom: "10px"
+    }
+  }, "🚫💧"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.text,
+      fontWeight: 800,
+      fontSize: "18px",
+      marginBottom: "8px"
+    }
+  }, "Remove Watermark"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "13px",
+      marginBottom: "22px",
+      lineHeight: 1.6
+    }
+  }, "Choose how to remove the watermark"), watching ?
+  /*#__PURE__*/
+  /* ── AD PLAYING UI ── */
+  React.createElement("div", {
+    style: {
+      marginBottom: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "linear-gradient(135deg,#1a1a2e,#16213e)",
+      borderRadius: "12px",
+      padding: "20px",
+      marginBottom: "12px",
+      border: `1px solid ${T.border}`,
+      position: "relative",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "8px",
+      right: "8px",
+      background: "rgba(255,255,255,0.1)",
+      color: T.muted,
+      fontSize: "9px",
+      padding: "2px 6px",
+      borderRadius: "4px"
+    }
+  }, "AD"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "32px",
+      marginBottom: "8px"
+    }
+  }, "📱"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: "15px",
+      marginBottom: "4px"
+    }
+  }, "Remwards App"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "12px",
+      marginBottom: "10px"
+    }
+  }, "Watch videos & earn airtime daily 🎁"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.accent,
+      color: "#fff",
+      fontSize: "12px",
+      fontWeight: 700,
+      padding: "6px 16px",
+      borderRadius: "20px",
+      display: "inline-block"
+    }
+  }, "Download Free")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 48,
+      height: 48,
+      borderRadius: "50%",
+      border: `3px solid ${T.accent}`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.accentLight,
+      fontWeight: 800,
+      fontSize: "18px"
+    }
+  }, countdown)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.muted,
+      fontSize: "13px"
+    }
+  }, countdown > 0 ? `Ad ends in ${countdown}s…` : "Done!"))) : /*#__PURE__*/React.createElement("button", {
+    onClick: watchAd,
+    style: {
+      width: "100%",
+      padding: "14px",
+      marginBottom: "12px",
+      background: `linear-gradient(135deg,#f59e0b,#d97706)`,
+      color: "#fff",
+      border: "none",
+      borderRadius: "12px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px"
+    }
+  }, "📺 Watch Ad — Free (this save only)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "12px",
+      marginBottom: "12px"
+    }
+  }, "— or —"), /*#__PURE__*/React.createElement("button", {
+    onClick: openSelar,
+    style: {
+      width: "100%",
+      padding: "14px",
+      marginBottom: "18px",
+      background: `linear-gradient(135deg,${T.accent},#4f46e5)`,
+      color: "#fff",
+      border: "none",
+      borderRadius: "12px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: "pointer"
+    }
+  }, "⭐ Go PRO — ₦1,000 Forever"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "11px",
+      marginBottom: "16px"
+    }
+  }, "🔒 Secured by Selar · Cards, Bank Transfer, USSD"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      background: "none",
+      border: "none",
+      color: T.muted,
+      fontSize: "13px",
+      cursor: "pointer"
+    }
+  }, "Cancel"))));
+}
+function AdSpinner() {
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: "14px",
+      height: "14px",
+      border: "2px solid rgba(255,255,255,0.3)",
+      borderTop: "2px solid #fff",
+      borderRadius: "50%",
+      display: "inline-block",
+      animation: "spin 0.7s linear infinite"
+    }
+  });
+}
+
+// ─── Watermark ────────────────────────────────────────────────────────────────
+function WM({
+  removed = false,
+  onRemoveClick
+}) {
+  if (removed) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      zIndex: 99,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "flex-end",
+      padding: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "0",
+      background: "rgba(0,0,0,0.45)",
+      borderRadius: "6px",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.7)",
+      fontSize: "8px",
+      fontWeight: 700,
+      letterSpacing: "0.06em",
+      padding: "3px 7px",
+      fontFamily: "monospace",
+      textTransform: "uppercase"
+    }
+  }, "PrankForge"), /*#__PURE__*/React.createElement("button", {
+    onClick: onRemoveClick,
+    className: "no-capture",
+    style: {
+      background: "rgba(239,68,68,0.85)",
+      border: "none",
+      color: "#fff",
+      fontSize: "11px",
+      fontWeight: 900,
+      padding: "3px 7px",
+      cursor: "pointer",
+      lineHeight: 1,
+      display: "flex",
+      alignItems: "center"
+    }
+  }, "×")));
+}
+
+// ─── Real Status Bar with SVG icons ──────────────────────────────────────────
+function StatusBar({
+  time = "6:22",
+  dark = false,
+  frame = "android"
+}) {
+  const c = dark ? "#fff" : "#000";
+  const bg = dark ? "#000" : "#fff";
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: bg,
+      padding: "5px 14px 3px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: c,
+      fontSize: "12px",
+      fontWeight: 700
+    }
+  }, time), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "5px"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "12",
+    viewBox: "0 0 16 12",
+    fill: c
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "0",
+    y: "8",
+    width: "3",
+    height: "4",
+    rx: "0.5"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "4",
+    y: "5",
+    width: "3",
+    height: "7",
+    rx: "0.5"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "8",
+    y: "2",
+    width: "3",
+    height: "10",
+    rx: "0.5"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "12",
+    y: "0",
+    width: "3",
+    height: "12",
+    rx: "0.5"
+  })), /*#__PURE__*/React.createElement("svg", {
+    width: "14",
+    height: "12",
+    viewBox: "0 0 24 24",
+    fill: c
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M1 9l2 2c5.07-5.07 13.23-5.07 18.3 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"
+  })), /*#__PURE__*/React.createElement("svg", {
+    width: "22",
+    height: "12",
+    viewBox: "0 0 22 12",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "0.5",
+    y: "0.5",
+    width: "18",
+    height: "11",
+    rx: "2.5",
+    stroke: c,
+    strokeWidth: "1"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "2",
+    y: "2",
+    width: "13",
+    height: "8",
+    rx: "1.5",
+    fill: c
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M19.5 4v4c.83-.33 1.5-1.2 1.5-2s-.67-1.67-1.5-2z",
+    fill: c
+  }), /*#__PURE__*/React.createElement("text", {
+    x: "2.5",
+    y: "9",
+    fontSize: "6",
+    fill: dark ? "#000" : "#fff",
+    fontWeight: "700"
+  }, "98%"))));
+}
+
+// ─── Phone Frame wrapper ──────────────────────────────────────────────────────
+function PhoneFrame({
+  children,
+  frame,
+  isPro
+}) {
+  // No frame — just clean card
+  if (frame === "none") return /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderRadius: "14px",
+      overflow: "hidden",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.5)"
+    }
+  }, children);
+  if (frame === "iphone" && !isPro) return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative"
+    }
+  }, children, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "14px",
+      zIndex: 100
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "36px",
+      marginBottom: "8px"
+    }
+  }, "🔒"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#fff",
+      fontWeight: 800,
+      fontSize: "16px"
+    }
+  }, "iPhone Frame"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.7)",
+      fontSize: "13px",
+      marginTop: "4px"
+    }
+  }, "PRO feature only"))));
+  if (frame === "iphone") return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      background: "#1a1a1a",
+      borderRadius: "50px",
+      padding: "14px 8px",
+      boxShadow: "0 0 0 2px #333, 0 20px 60px rgba(0,0,0,0.5)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "14px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "120px",
+      height: "28px",
+      background: "#1a1a1a",
+      borderRadius: "0 0 18px 18px",
+      zIndex: 10,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: "10px",
+      height: "10px",
+      borderRadius: "50%",
+      background: "#333"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: "50px",
+      height: "6px",
+      borderRadius: "3px",
+      background: "#333"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderRadius: "40px",
+      overflow: "hidden"
+    }
+  }, children), /*#__PURE__*/React.createElement("div", {
+    style: {
+      margin: "10px auto 0",
+      width: "100px",
+      height: "4px",
+      background: "#555",
+      borderRadius: "2px"
+    }
+  }));
+
+  // Android frame
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      background: "#111",
+      borderRadius: "36px",
+      padding: "12px 6px",
+      boxShadow: "0 0 0 2px #333, 0 20px 60px rgba(0,0,0,0.5)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "14px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "10px",
+      height: "10px",
+      borderRadius: "50%",
+      background: "#333",
+      zIndex: 10
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderRadius: "28px",
+      overflow: "hidden",
+      marginTop: "8px"
+    }
+  }, children), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "center",
+      gap: "20px",
+      padding: "8px 0 2px"
+    }
+  }, ["◁", "○", "□"].map(s => /*#__PURE__*/React.createElement("span", {
+    key: s,
+    style: {
+      color: "#555",
+      fontSize: "14px"
+    }
+  }, s))));
+}
+
+// ─── Save bar ─────────────────────────────────────────────────────────────────
+function SaveBar({
+  previewRef,
+  filename,
+  wmRemoved,
+  onWmRemoved,
+  onOpenModal
+}) {
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
+  // modal is now lifted to parent
+  const ready = useH2C();
+  const capture = async () => {
+    // Hide all delete buttons before capture
+    const btns = previewRef.current.querySelectorAll('.no-capture');
+    btns.forEach(b => b.style.display = 'none');
+    const canvas = await window.html2canvas(previewRef.current, {
+      useCORS: true,
+      scale: 2,
+      backgroundColor: null,
+      logging: false
+    });
+    // Restore buttons after capture
+    btns.forEach(b => b.style.display = '');
+    return canvas;
+  };
+  const doSave = async () => {
+    if (!ready || !previewRef.current) return;
+    setSaving(true);
+    fireInterstitial(); // show ad on every save
+    try {
+      const c = await capture();
+      const a = document.createElement("a");
+      a.download = `${filename}-prankforge.png`;
+      a.href = c.toDataURL("image/png");
+      a.click();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      alert("Save failed, try again");
+    }
+    setSaving(false);
+  };
+  const doShare = async () => {
+    if (!ready || !previewRef.current) return;
+    setSaving(true);
+    try {
+      const c = await capture();
+      c.toBlob(async blob => {
+        const file = new File([blob], `${filename}-prankforge.png`, {
+          type: "image/png"
+        });
+        if (navigator.share && navigator.canShare({
+          files: [file]
+        })) await navigator.share({
+          files: [file],
+          title: "PrankForge 😂",
+          text: "Check this out 👀"
+        });else {
+          const a = document.createElement("a");
+          a.download = `${filename}-prankforge.png`;
+          a.href = c.toDataURL("image/png");
+          a.click();
+        }
+        setSaving(false);
+      });
+    } catch (e) {
+      setSaving(false);
+    }
+  };
+  return /*#__PURE__*/React.createElement(React.Fragment, null, !wmRemoved && /*#__PURE__*/React.createElement("div", {
+    onClick: onOpenModal,
+    style: {
+      marginTop: "12px",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      background: "rgba(239,68,68,0.08)",
+      border: "1px solid rgba(239,68,68,0.2)",
+      borderRadius: "10px",
+      padding: "9px 14px",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "14px"
+    }
+  }, "🚫"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#f87171",
+      fontSize: "13px",
+      flex: 1
+    }
+  }, "Watermark is on — tap to remove it free"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#f87171",
+      fontSize: "18px"
+    }
+  }, "›")), wmRemoved && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "12px",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      background: "rgba(34,197,94,0.08)",
+      border: "1px solid rgba(34,197,94,0.2)",
+      borderRadius: "10px",
+      padding: "9px 14px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "14px"
+    }
+  }, "✅"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.success,
+      fontSize: "13px"
+    }
+  }, "Watermark removed for this save!")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "10px",
+      marginTop: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: doSave,
+    disabled: saving || !ready,
+    style: {
+      flex: 1,
+      padding: "13px",
+      border: "none",
+      borderRadius: "12px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: saving ? "wait" : "pointer",
+      color: "#fff",
+      background: saved ? T.success : `linear-gradient(135deg,${T.accent},#4f46e5)`,
+      opacity: !ready ? 0.5 : 1,
+      boxShadow: "0 4px 16px rgba(124,58,237,0.3)"
+    }
+  }, saving ? "⏳ Saving..." : saved ? "✅ Saved!" : "💾 Save as Image"), /*#__PURE__*/React.createElement("button", {
+    onClick: doShare,
+    disabled: saving || !ready,
+    style: {
+      padding: "13px 16px",
+      background: T.surface,
+      border: `1px solid ${T.border}`,
+      color: T.text,
+      borderRadius: "12px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: saving ? "wait" : "pointer",
+      opacity: !ready ? 0.5 : 1
+    }
+  }, "📤 Share")));
+}
+
+// ─── Disclaimer ───────────────────────────────────────────────────────────────
+function Disclaimer({
+  onAccept
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.95)",
+      zIndex: 1000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.surface,
+      border: `1px solid ${T.danger}`,
+      borderRadius: "16px",
+      padding: "28px",
+      maxWidth: "360px",
+      width: "100%",
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "44px",
+      marginBottom: "10px"
+    }
+  }, "⚠️"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.danger,
+      fontWeight: 800,
+      fontSize: "18px",
+      marginBottom: "12px"
+    }
+  }, "READ BEFORE CONTINUING"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: T.text,
+      fontSize: "14px",
+      lineHeight: 1.6,
+      marginBottom: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "PrankForge"), " is for ", /*#__PURE__*/React.createElement("strong", null, "fun & entertainment only"), "."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "rgba(239,68,68,0.1)",
+      border: "1px solid rgba(239,68,68,0.3)",
+      borderRadius: "10px",
+      padding: "14px",
+      marginBottom: "18px",
+      textAlign: "left"
+    }
+  }, ["❌ Do NOT use to defraud anyone", "❌ Do NOT use for financial scams", "❌ Do NOT present as real documents", "✅ All outputs carry a PRANK watermark", "✅ Share only with friends who know it's fake"].map((t, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      color: T.text,
+      fontSize: "13px",
+      marginBottom: "6px"
+    }
+  }, t))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: T.muted,
+      fontSize: "12px",
+      marginBottom: "18px"
+    }
+  }, "Misuse may be illegal. By continuing you confirm this is harmless fun only."), /*#__PURE__*/React.createElement("button", {
+    onClick: onAccept,
+    style: {
+      width: "100%",
+      padding: "14px",
+      background: T.accent,
+      color: "#fff",
+      border: "none",
+      borderRadius: "10px",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: "pointer"
+    }
+  }, "I Understand — Let's Prank! 😂")));
+}
+
+// ════════════════════════════════════════════════════════════════
+// WHATSAPP GENERATOR
+// ════════════════════════════════════════════════════════════════
+function WhatsAppGen() {
+  const ref = React.useRef();
+  const [wmRemoved, setWmRemoved] = React.useState(false);
+  const [showWmModal, setShowWmModal] = React.useState(false);
+  const [contactName, setContactName] = React.useState("Bro Victor");
+  const [contactAvatar, setContactAvatar] = React.useState(null);
+  const [statusText, setStatusText] = React.useState("online");
+  const [sbTime, setSbTime] = React.useState("6:22");
+  const [wallpaper, setWallpaper] = React.useState("classic");
+  const [groupMode, setGroupMode] = React.useState(false);
+  const [frame, setFrame] = React.useState("android");
+  const {
+    isPro
+  } = usePro();
+  const [msgs, setMsgs] = React.useState([{
+    id: 1,
+    from: "them",
+    text: "Guy I just saw you on TV 😭",
+    time: "10:42 AM",
+    read: true
+  }, {
+    id: 2,
+    from: "me",
+    text: "Nah you're joking 😂",
+    time: "10:43 AM",
+    read: true
+  }, {
+    id: 3,
+    from: "them",
+    text: "I swear! You were on channel 10 broadcast!",
+    time: "10:43 AM",
+    read: false
+  }]);
+  const [newTxt, setNewTxt] = React.useState("");
+  const [newFrom, setNewFrom] = React.useState("them");
+  const [newTime, setNewTime] = React.useState("10:44 AM");
+  const [newDate, setNewDate] = React.useState("");
+  const addMsg = () => {
+    if (!newTxt.trim()) return;
+    setMsgs(p => [...p, {
+      id: Date.now(),
+      from: newFrom,
+      text: newTxt,
+      time: newTime,
+      date: newDate || null,
+      read: true
+    }]);
+    setNewTxt("");
+    setNewDate("");
+  };
+  const removeMsg = id => setMsgs(p => p.filter(m => m.id !== id));
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "10px",
+      marginBottom: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Contact Name"), /*#__PURE__*/React.createElement("input", {
+    value: contactName,
+    onChange: e => setContactName(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Status"), /*#__PURE__*/React.createElement("input", {
+    value: statusText,
+    onChange: e => setStatusText(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Clock Time"), /*#__PURE__*/React.createElement("input", {
+    value: sbTime,
+    onChange: e => setSbTime(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Wallpaper"), /*#__PURE__*/React.createElement("select", {
+    value: wallpaper,
+    onChange: e => setWallpaper(e.target.value),
+    style: inp
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "classic"
+  }, "Classic (default)"), /*#__PURE__*/React.createElement("option", {
+    value: "dark"
+  }, "Dark Mode"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Phone Frame"), /*#__PURE__*/React.createElement("select", {
+    value: frame,
+    onChange: e => setFrame(e.target.value),
+    style: inp
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "android"
+  }, "📱 Android (Free)"), /*#__PURE__*/React.createElement("option", {
+    value: "iphone"
+  }, "🍎 iPhone (PRO)"), /*#__PURE__*/React.createElement("option", {
+    value: "none"
+  }, "No Frame"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      paddingTop: "22px"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: groupMode,
+    onChange: e => setGroupMode(e.target.checked),
+    id: "grp",
+    style: {
+      width: 16,
+      height: 16
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "grp",
+    style: {
+      color: T.text,
+      fontSize: "13px",
+      cursor: "pointer"
+    }
+  }, "Group chat mode"))), /*#__PURE__*/React.createElement(AvatarPicker, {
+    label: "Contact Photo",
+    image: contactAvatar,
+    onImage: setContactAvatar,
+    initials: contactName.charAt(0).toUpperCase(),
+    bgColor: "#128c7e"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.bg,
+      border: `1px solid ${T.border}`,
+      borderRadius: "10px",
+      padding: "12px",
+      marginBottom: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "8px",
+      marginBottom: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    value: newFrom,
+    onChange: e => setNewFrom(e.target.value),
+    style: {
+      ...inp,
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "them"
+  }, contactName, " (left)"), /*#__PURE__*/React.createElement("option", {
+    value: "me"
+  }, "Me (right)")), /*#__PURE__*/React.createElement("input", {
+    value: newTime,
+    onChange: e => setNewTime(e.target.value),
+    style: {
+      ...inp,
+      width: "90px"
+    },
+    placeholder: "Time"
+  })), /*#__PURE__*/React.createElement("input", {
+    value: newDate,
+    onChange: e => setNewDate(e.target.value),
+    style: {
+      ...inp,
+      marginBottom: "8px"
+    },
+    placeholder: "Date separator e.g. Today (optional)"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: newTxt,
+    onChange: e => setNewTxt(e.target.value),
+    style: {
+      ...inp,
+      flex: 1
+    },
+    placeholder: "Type message...",
+    onKeyDown: e => e.key === "Enter" && addMsg()
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: addMsg,
+    style: {
+      padding: "9px 18px",
+      background: T.accent,
+      color: "#fff",
+      border: "none",
+      borderRadius: "8px",
+      fontWeight: 700,
+      fontSize: "14px",
+      cursor: "pointer"
+    }
+  }, "Add"))), /*#__PURE__*/React.createElement(PhoneFrame, {
+    frame: frame,
+    isPro: isPro
+  }, /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    style: {
+      overflow: "hidden",
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement(StatusBar, {
+    time: sbTime,
+    dark: wallpaper === "dark"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: wallpaper === "dark" ? "#1f2c34" : "#075e54",
+      padding: "8px 12px",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "22",
+    height: "22",
+    viewBox: "0 0 24 24",
+    fill: "rgba(255,255,255,0.85)"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement(Avatar, {
+    image: contactAvatar,
+    size: 38,
+    initials: contactName.charAt(0).toUpperCase(),
+    bgColor: "#128c7e"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: 1,
+      right: 1,
+      width: 10,
+      height: 10,
+      borderRadius: "50%",
+      background: "#25d366",
+      border: `1.5px solid ${wallpaper === "dark" ? "#1f2c34" : "#075e54"}`
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: "15px"
+    }
+  }, contactName), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.75)",
+      fontSize: "12px"
+    }
+  }, statusText)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "18px",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "22",
+    height: "22",
+    viewBox: "0 0 24 24",
+    fill: "rgba(255,255,255,0.85)"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"
+  })), /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "rgba(255,255,255,0.85)"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+  })), /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "rgba(255,255,255,0.85)"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: wallpaper === "dark" ? "#111b21" : "#e5ddd5",
+      minHeight: "300px",
+      padding: "10px 8px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "6px"
+    }
+  }, msgs.map(msg => /*#__PURE__*/React.createElement("div", {
+    key: msg.id
+  }, msg.date && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      margin: "8px 0"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: "rgba(255,255,255,0.85)",
+      color: "#555",
+      fontSize: "11px",
+      padding: "3px 12px",
+      borderRadius: "8px",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.15)"
+    }
+  }, msg.date)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: msg.from === "me" ? "flex-end" : "flex-start",
+      marginBottom: "2px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      background: msg.from === "me" ? wallpaper === "dark" ? "#005c4b" : "#dcf8c6" : wallpaper === "dark" ? "#1f2c34" : "#ffffff",
+      borderRadius: msg.from === "me" ? "10px 2px 10px 10px" : "2px 10px 10px 10px",
+      padding: "6px 10px 4px",
+      maxWidth: "80%",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.18)"
+    }
+  }, groupMode && msg.from === "them" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#00a884",
+      fontSize: "12px",
+      fontWeight: 700,
+      marginBottom: "2px"
+    }
+  }, contactName), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: wallpaper === "dark" ? "#e9edef" : "#111",
+      fontSize: "14px",
+      lineHeight: 1.45,
+      wordBreak: "break-word"
+    }
+  }, msg.text), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: "3px",
+      marginTop: "1px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: wallpaper === "dark" ? "#8696a0" : "#999",
+      fontSize: "10px"
+    }
+  }, msg.time), msg.from === "me" && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "12px",
+      color: msg.read ? wallpaper === "dark" ? "#53bdeb" : "#34b7f1" : wallpaper === "dark" ? "#8696a0" : "#999"
+    }
+  }, msg.read ? "✓✓" : "✓")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeMsg(msg.id),
+    className: "no-capture",
+    style: {
+      position: "absolute",
+      top: "-8px",
+      right: "-8px",
+      background: T.danger,
+      color: "#fff",
+      border: "none",
+      borderRadius: "50%",
+      width: "17px",
+      height: "17px",
+      fontSize: "10px",
+      cursor: "pointer",
+      lineHeight: 1,
+      zIndex: 5
+    }
+  }, "×")))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: wallpaper === "dark" ? "#1f2c34" : "#f0f0f0",
+      padding: "6px 8px",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      background: wallpaper === "dark" ? "#2a3942" : "#fff",
+      borderRadius: "22px",
+      padding: "9px 14px",
+      fontSize: "14px",
+      color: "#aaa",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "22",
+    height: "22",
+    viewBox: "0 0 24 24",
+    fill: wallpaper === "dark" ? "#8696a0" : "#999"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1,
+      color: wallpaper === "dark" ? "#8696a0" : "#aaa"
+    }
+  }, "Message"), /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: wallpaper === "dark" ? "#8696a0" : "#999"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 42,
+      height: 42,
+      borderRadius: "50%",
+      background: "#25d366",
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxShadow: "0 2px 8px rgba(37,211,102,0.4)"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "#fff"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"
+  })))), /*#__PURE__*/React.createElement(WM, {
+    removed: wmRemoved,
+    onRemoveClick: () => setShowWmModal(true)
+  }))), showWmModal && /*#__PURE__*/React.createElement(RemoveWMModal, {
+    onClose: () => setShowWmModal(false),
+    onRemoved: () => setWmRemoved(true)
+  }), /*#__PURE__*/React.createElement(SaveBar, {
+    previewRef: ref,
+    filename: "whatsapp-prank",
+    wmRemoved: wmRemoved,
+    onWmRemoved: () => setWmRemoved(true),
+    onOpenModal: () => setShowWmModal(true)
+  }));
+}
+
+// ════════════════════════════════════════════════════════════════
+// BANK RECEIPT GENERATORS — each bank has its own layout
+// ════════════════════════════════════════════════════════════════
+
+// Shared row for two-col table receipts
+function Row({
+  label,
+  value,
+  labelColor = "#555",
+  bold = false,
+  borderBottom = true,
+  extra = null
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      padding: "10px 0",
+      borderBottom: borderBottom ? "1px solid #eee" : "none"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: labelColor,
+      fontSize: "13px",
+      minWidth: "120px",
+      fontWeight: bold ? 700 : 400
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right",
+      maxWidth: "65%"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontSize: "13px",
+      wordBreak: "break-all"
+    }
+  }, value), extra && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#888",
+      fontSize: "12px",
+      marginTop: "2px"
+    }
+  }, extra)));
+}
+
+// ── OPAY ──────────────────────────────────────────────────────────────────────
+function OPayReceipt({
+  data
+}) {
+  const DiagWM = () => /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      overflow: "hidden",
+      pointerEvents: "none",
+      zIndex: 1
+    }
+  }, [...Array(7)].map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      position: "absolute",
+      top: `${i * 16 - 4}%`,
+      left: "-10%",
+      width: "130%",
+      color: "rgba(0,177,64,0.06)",
+      fontSize: "20px",
+      fontWeight: 800,
+      whiteSpace: "nowrap",
+      transform: "rotate(-25deg)",
+      letterSpacing: "20px",
+      userSelect: "none"
+    }
+  }, "OPay OPay OPay OPay OPay OPay")));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      background: "#fff",
+      fontFamily: "sans-serif",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement(DiagWM, null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      zIndex: 2
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "13px",
+      background: "radial-gradient(circle at 50% 0,transparent 5px,#f5f5f5 5px)",
+      backgroundSize: "13px 13px",
+      backgroundRepeat: "repeat-x"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "16px 20px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: "50%",
+      border: "2.5px solid #00b140",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 12,
+      height: 12,
+      borderRadius: "50%",
+      background: "#00b140",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 4,
+      height: 4,
+      borderRadius: "50%",
+      background: "#fff"
+    }
+  }))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#111",
+      fontWeight: 800,
+      fontSize: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#00b140"
+    }
+  }, "O"), "Pay")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#333",
+      fontSize: "15px"
+    }
+  }, "Transaction Receipt")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: "90%",
+      margin: "0 auto",
+      height: "1px",
+      background: "#eee"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "20px 20px 14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#00b140",
+      fontSize: "34px",
+      fontWeight: 800
+    }
+  }, "₦", data.amount), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#222",
+      fontSize: "20px",
+      fontWeight: 500,
+      marginTop: "4px"
+    }
+  }, data.status), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#999",
+      fontSize: "13px",
+      marginTop: "4px"
+    }
+  }, data.dateTime)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: "90%",
+      margin: "0 auto",
+      height: "1px",
+      background: "#eee",
+      marginBottom: "12px"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "0 20px"
+    }
+  }, /*#__PURE__*/React.createElement(Row, {
+    label: "Recipient Details",
+    value: data.recipientName,
+    extra: `${data.recipientBank} | ${data.recipientAcct}`
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Sender Details",
+    value: data.senderName,
+    extra: `${data.senderBank} | ${data.senderPhone}`
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Transaction No.",
+    value: data.txnNo
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Session ID",
+    value: data.sessionId,
+    borderBottom: false
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      margin: "14px 20px",
+      padding: "12px",
+      background: "#f9f9f9",
+      borderRadius: "6px",
+      fontSize: "11px",
+      color: "#777",
+      lineHeight: 1.6
+    }
+  }, "Enjoy a better life with OPay. Get free transfers, withdrawals, bill payments, instant loans, and good annual interest on your savings. OPay is licensed by the Central Bank of Nigeria and insured by the NDIC."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "13px",
+      background: "radial-gradient(circle at 50% 100%,transparent 5px,#f5f5f5 5px)",
+      backgroundSize: "13px 13px",
+      backgroundRepeat: "repeat-x"
+    }
+  })));
+}
+
+// ── FIRSTBANK ─────────────────────────────────────────────────────────────────
+function FirstBankReceipt({
+  data
+}) {
+  const DiagWM = () => /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      overflow: "hidden",
+      pointerEvents: "none",
+      zIndex: 1
+    }
+  }, [...Array(5)].map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      position: "absolute",
+      top: `${i * 22 - 5}%`,
+      left: "-5%",
+      width: "120%",
+      color: "rgba(0,75,141,0.04)",
+      fontSize: "36px",
+      fontWeight: 800,
+      whiteSpace: "nowrap",
+      transform: "rotate(-30deg)",
+      letterSpacing: "10px",
+      userSelect: "none"
+    }
+  }, "FirstBank FirstBank FirstBank")), [0, 1, 2, 3].map(i => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      position: "absolute",
+      left: 0,
+      top: `${i * 25}%`,
+      width: "28px",
+      height: "60px",
+      background: `rgba(0,75,141,${0.05 + i * 0.02})`,
+      borderRadius: "0 4px 4px 0"
+    }
+  })));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      background: "#fff",
+      fontFamily: "sans-serif",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement(DiagWM, null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      zIndex: 2,
+      padding: "20px 24px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: "50%",
+      background: "#004B8D",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fff",
+      fontSize: "18px"
+    }
+  }, "🦅")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#004B8D",
+      fontWeight: 800,
+      fontSize: "16px"
+    }
+  }, "FirstBank"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#999",
+      fontSize: "9px"
+    }
+  }, "Since 1894")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      marginBottom: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#222",
+      fontWeight: 700,
+      fontSize: "18px"
+    }
+  }, "Transaction Receipt"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#004B8D",
+      fontWeight: 700,
+      fontSize: "16px",
+      marginTop: "4px"
+    }
+  }, data.status), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#004B8D",
+      fontSize: "28px",
+      fontWeight: 800,
+      marginTop: "6px"
+    }
+  }, "₦ ", data.amount), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#888",
+      fontSize: "12px",
+      marginTop: "4px"
+    }
+  }, data.amountWords), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#888",
+      fontSize: "12px"
+    }
+  }, data.dateTime)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "1px",
+      background: "#ddd",
+      margin: "14px 0"
+    }
+  }), [["From:", data.fromAcct], ["Sender Name:", data.senderName], ["Beneficiary Name:", data.recipientName], ["Account No:", data.recipientAcct], ["Bank:", data.recipientBank], ["Transaction Type:", data.txnType], ["Reference No:", data.txnNo], ["Narration:", data.narration || "None"]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      display: "flex",
+      padding: "8px 0",
+      borderBottom: "1px solid #f5f5f5"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#004B8D",
+      fontWeight: 700,
+      fontSize: "13px",
+      minWidth: "150px"
+    }
+  }, l), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#111",
+      fontSize: "13px",
+      wordBreak: "break-all"
+    }
+  }, v))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "16px",
+      fontSize: "10px",
+      color: "#888",
+      lineHeight: 1.7
+    }
+  }, "For more information, please contact us: 01-9194885838, 07080625000 findcontactcomplaints@firstbanknigeria.com complaints@firstbanknigeria.com; www.firstbanknigeria.com"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "12px",
+      padding: "10px",
+      background: "#f0f7ff",
+      borderRadius: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#004B8D",
+      fontWeight: 700,
+      fontSize: "13px"
+    }
+  }, "Get airtime in seconds by dialing *894*Amount#"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#555",
+      fontSize: "12px"
+    }
+  }, "Out of Data? Dial *894*2# to get data now.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "10px",
+      fontSize: "9px",
+      color: "#aaa",
+      lineHeight: 1.6
+    }
+  }, "Your transfer has been successful and the beneficiary's account will be credited. However, this does not serve as confirmation of a credit into the beneficiary's account. Due to the nature of the interac transactions may be subject to the interruption, transmission blackout, delayed transmission and incorrect data transmission. The bank is not liable to malfunctions in communications facilities not within its control to confirm that may affect the accuracy or timeliness of messages and transactions you send. All transactions are subject to verification and normal fraud checks.")));
+}
+
+// ── GTBANK ────────────────────────────────────────────────────────────────────
+function GTBankReceipt({
+  data
+}) {
+  const DiagWM = () => /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      overflow: "hidden",
+      pointerEvents: "none",
+      zIndex: 1
+    }
+  }, [...Array(6)].map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      position: "absolute",
+      top: `${i * 18 - 4}%`,
+      left: "-10%",
+      width: "130%",
+      color: "rgba(242,101,34,0.05)",
+      fontSize: "22px",
+      fontWeight: 800,
+      whiteSpace: "nowrap",
+      transform: "rotate(-20deg)",
+      letterSpacing: "16px",
+      userSelect: "none"
+    }
+  }, "Guaranty Trust Bank plc RC 152321 Guaranty Trust Bank plc")));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      background: "#fff",
+      fontFamily: "Arial,sans-serif",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement(DiagWM, null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      zIndex: 2,
+      padding: "20px 24px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#f26522",
+      color: "#fff",
+      fontWeight: 800,
+      fontSize: "16px",
+      padding: "8px 12px",
+      borderRadius: "4px",
+      display: "inline-block"
+    }
+  }, "GTBank"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#555",
+      fontSize: "11px",
+      marginTop: "4px"
+    }
+  }, "Guaranty Trust Bank plc"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#999",
+      fontSize: "10px"
+    }
+  }, "RC 152321"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      marginBottom: "18px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      height: "1px",
+      background: "#ccc"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#222",
+      fontWeight: 700,
+      fontSize: "17px"
+    }
+  }, "Transaction Receipt"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      height: "1px",
+      background: "#ccc"
+    }
+  })), [["Transaction Date:", data.dateTime], ["Reference Number:", data.txnNo], ["Sender:", data.senderName], ["Transaction Amount:", `${data.amount}NGN`], ["Amount In Words:", data.amountWords], ["Transaction Type:", data.txnType || "To Other Bank (Instant)"], ["Receiver:", `${data.recipientName} - ${data.recipientAcct} - ${data.recipientBankCode || "FBN"}`], ["Account Number:", data.recipientAcct], ["Receiving Bank:", data.recipientBank], ["Remarks:", data.narration || ""]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      display: "flex",
+      padding: "9px 0",
+      borderBottom: "1px solid #f0f0f0"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#f26522",
+      fontWeight: 700,
+      fontSize: "13px",
+      minWidth: "170px",
+      flexShrink: 0
+    }
+  }, l), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#111",
+      fontSize: "13px",
+      wordBreak: "break-all"
+    }
+  }, v))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "1px",
+      background: "#ccc",
+      margin: "20px 0 14px"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "10px",
+      color: "#888",
+      lineHeight: 1.7,
+      marginBottom: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "DISCLAIMER"), /*#__PURE__*/React.createElement("br", null), "Your transfer has been successful and the beneficiary's account will be credited. However, this does not serve as confirmation of credit into the beneficiary's account. Due to the nature of the Internet, transactions may be subject to interruption, transmission blackout, delayed transmission and incorrect data transmission. The Bank is not liable for malfunctions in communications facilities not within its control that may affect the accuracy or timeliness of messages and transactions you send. All transactions are subject to verification and our normal fraud checks"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      color: "#333",
+      fontWeight: 700,
+      fontSize: "13px"
+    }
+  }, "Generated from GTWorld")));
+}
+
+// ── KUDA ──────────────────────────────────────────────────────────────────────
+function KudaReceipt({
+  data
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      fontFamily: "'Helvetica Neue',Arial,sans-serif",
+      padding: "24px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "28px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: "6px",
+      background: "#40196d",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fff",
+      fontWeight: 900,
+      fontSize: "14px"
+    }
+  }, "K")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#40196d",
+      fontWeight: 900,
+      fontSize: "22px"
+    }
+  }, "kuda.")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#333",
+      fontSize: "15px",
+      fontWeight: 500
+    }
+  }, "Transaction Details")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      marginBottom: "28px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#555",
+      fontSize: "13px",
+      fontWeight: 600,
+      marginBottom: "6px"
+    }
+  }, "Transaction Amount"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#40196d",
+      fontSize: "36px",
+      fontWeight: 800
+    }
+  }, "₦", data.amount)), [["Beneficiary Details", data.recipientName, `${data.recipientBank} | ${data.recipientAcct}`], ["Sender Details", data.senderName, `${data.senderBank || "Kuda"} | ${data.txnNo}`], ["Paid On", data.dateTime, data.time || ""], ["Fees", "₦0.00", null], ["Description", data.narration || `From ${data.senderName}`, null], ["Transaction Reference", data.txnNo, null], ["Payment Type", data.txnType || "Local Funds Transfer", null]].map(([l, v, sub]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      padding: "12px 0",
+      borderBottom: "1px solid #f0f0f0"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#aaa",
+      fontSize: "13px"
+    }
+  }, l), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right",
+      maxWidth: "60%"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontSize: "13px",
+      fontWeight: 500,
+      wordBreak: "break-all"
+    }
+  }, v), sub && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#aaa",
+      fontSize: "11px",
+      marginTop: "2px",
+      wordBreak: "break-all"
+    }
+  }, sub)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "24px",
+      background: "#f5f0ff",
+      borderRadius: "12px",
+      padding: "14px 16px",
+      display: "flex",
+      alignItems: "center",
+      gap: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 36,
+      height: 36,
+      borderRadius: "8px",
+      background: "#40196d",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fff",
+      fontWeight: 900,
+      fontSize: "14px"
+    }
+  }, "K.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#40196d",
+      fontWeight: 700,
+      fontSize: "13px"
+    }
+  }, "Not on Kuda? Tap here to download the money app for Africans")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "20px",
+      textAlign: "center",
+      fontSize: "10px",
+      color: "#aaa",
+      lineHeight: 1.7
+    }
+  }, "© 2023 Kuda Technologies Ltd (Company No. 11472232). All rights reserved.", /*#__PURE__*/React.createElement("br", null), "Nigerian banking services offered by Kuda Microfinance Bank (RC796975) with registered address at 151 - Herbert Macaulay Way, Yaba, Lagos, Nigeria."));
+}
+
+// ── MONIEPOINT ────────────────────────────────────────────────────────────────
+function MoniepointReceipt({
+  data
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "linear-gradient(135deg,#1a6bcc,#1a4fa8)",
+      padding: "24px 16px",
+      minHeight: "500px",
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "40%",
+      left: "-10px",
+      width: "calc(100% + 20px)",
+      height: "8px",
+      background: "#f5a623",
+      opacity: 0.5,
+      transform: "rotate(-2deg)"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "80%",
+      left: "-10px",
+      width: "calc(100% + 20px)",
+      height: "6px",
+      background: "#f5a623",
+      opacity: 0.3,
+      transform: "rotate(1deg)"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: "8px",
+      marginBottom: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: "8px",
+      background: "#fff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#1a6bcc",
+      fontWeight: 900,
+      fontSize: "14px"
+    }
+  }, "M")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fff",
+      fontWeight: 800,
+      fontSize: "20px"
+    }
+  }, "Moniepoint")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      borderRadius: "16px 16px 0 0",
+      paddingBottom: "0",
+      overflow: "hidden",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "16px 20px 0"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: "#e8f4ff",
+      color: "#1a6bcc",
+      fontSize: "11px",
+      fontWeight: 700,
+      padding: "3px 10px",
+      borderRadius: "4px"
+    }
+  }, "DEBIT"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontSize: "28px",
+      fontWeight: 800,
+      marginTop: "8px"
+    }
+  }, "₦", data.amount)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 38,
+      height: 38,
+      borderRadius: "8px",
+      background: "#1a6bcc",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#fff",
+      fontWeight: 900,
+      fontSize: "16px"
+    }
+  }, "M")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "1px",
+      background: "#f0f0f0",
+      margin: "14px 0"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "0 20px 20px"
+    }
+  }, [["Transaction Type", /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: "#e8f4ff",
+      color: "#1a6bcc",
+      fontSize: "11px",
+      fontWeight: 700,
+      padding: "2px 8px",
+      borderRadius: "4px"
+    }
+  }, "Transfer")], ["Sender Name", data.senderName], ["Source Institution", data.senderBank || "Moniepoint MFB"], ["Beneficiary", data.recipientName], ["Beneficiary Institution", data.recipientBank || "Moniepoint MFB"], ["Transaction Date", data.dateTime], ["Transaction Reference", data.txnNo], ["Business Name", data.businessName || data.senderName]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      marginBottom: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#aaa",
+      fontSize: "11px",
+      marginBottom: "3px"
+    }
+  }, l), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontSize: "14px",
+      fontWeight: 500
+    }
+  }, v)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "20px",
+      background: "radial-gradient(circle at 50% 100%,#1a6bcc 8px,#fff 8px)",
+      backgroundSize: "20px 20px",
+      backgroundRepeat: "repeat-x",
+      backgroundPosition: "bottom"
+    }
+  })));
+}
+
+// ── ACCESS BANK ───────────────────────────────────────────────────────────────
+function AccessReceipt({
+  data
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      fontFamily: "Arial,sans-serif",
+      padding: "28px 28px 20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 36,
+      height: 36,
+      borderRadius: "50%",
+      border: "2px solid #e30613",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#e30613",
+      fontSize: "16px"
+    }
+  }, "◆")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087",
+      fontWeight: 700,
+      fontSize: "22px"
+    }
+  }, "access")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#e30613",
+      fontWeight: 700,
+      fontSize: "28px",
+      lineHeight: 1
+    }
+  }, "/"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#e30613",
+      fontSize: "11px",
+      fontWeight: 600
+    }
+  }, "more than banking"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      marginBottom: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#003087",
+      fontWeight: 800,
+      fontSize: "20px"
+    }
+  }, "Transaction Receipt"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#999",
+      fontSize: "11px",
+      marginTop: "4px"
+    }
+  }, "Generated from AccessMore on ", data.dateTime)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "1px",
+      background: "#ddd",
+      margin: "16px 0"
+    }
+  }), [["Transaction Amount", data.amount.includes("N") ? data.amount : `N${data.amount}`], ["Transaction Type", data.txnType || "INTER-BANK"], ["Transaction Date", data.dateTime], ["Sender", data.senderName], ["Beneficiary", `${data.recipientName}\n${data.recipientAcct}\n${data.recipientBank}`], ["Remark", data.narration || ""], ["Transaction Reference", data.txnNo], ["Transaction Status", "Transfer Request Successful"]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      display: "flex",
+      padding: "10px 0",
+      borderBottom: "1px solid #f5f5f5"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#f26522",
+      fontWeight: 700,
+      fontSize: "13px",
+      minWidth: "170px",
+      flexShrink: 0
+    }
+  }, l), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087",
+      fontSize: "13px",
+      whiteSpace: "pre-line",
+      wordBreak: "break-all"
+    }
+  }, v))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "18px",
+      fontSize: "10px",
+      color: "#888",
+      lineHeight: 1.7
+    }
+  }, "If you have any questions or would like more information, please call our 24-hour Contact Centre on ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087"
+    }
+  }, "0700CallAccess"), ", ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087"
+    }
+  }, "0700 3000000"), ", ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087"
+    }
+  }, "+234 1-2712005-7"), ", ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087"
+    }
+  }, "+234 1-2802500"), " or send an email to ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087"
+    }
+  }, "contactcenter@accessbankplc.com"), /*#__PURE__*/React.createElement("br", null), "Thank you for choosing Access Bank.", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("br", null), "Banking with Access: Branch | ATM | Online | Mobile | Contact centre"));
+}
+
+// ── FIDELITY ──────────────────────────────────────────────────────────────────
+function FidelityReceipt({
+  data
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      fontFamily: "Arial,sans-serif",
+      padding: "28px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "4px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 28,
+      height: 28,
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      borderRadius: "2px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      background: "#003087"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      background: "#00a651"
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#003087",
+      fontWeight: 800,
+      fontSize: "20px"
+    }
+  }, "Fidelity"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "4px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontWeight: 800,
+      fontSize: "20px"
+    }
+  }, "Online Banking"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#555",
+      fontSize: "13px"
+    }
+  }, "Transaction Receipt")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "1px",
+      background: "#ddd",
+      margin: "14px 0"
+    }
+  }), [["Payer", `${data.senderName}\n${data.fromAcct || "560****654"}\nFidelity Bank Plc.`], ["Receiver", `${data.recipientName}\n${data.recipientAcct}\n${data.recipientBank}`], ["Transaction", `NGN ${data.amount}\nINTERTRANSFER\n${data.dateTime}`], ["Narration", data.narration || `COB TRF TO ${data.recipientName}`], ["Reference", `${data.txnNo}\nSUCCESSFUL`]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      display: "flex",
+      padding: "11px 0",
+      borderBottom: "1px solid #eee"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#555",
+      fontSize: "13px",
+      minWidth: "110px",
+      flexShrink: 0
+    }
+  }, l), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#111",
+      fontSize: "13px",
+      whiteSpace: "pre-line",
+      wordBreak: "break-all"
+    }
+  }, v))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "16px",
+      marginTop: "18px",
+      alignItems: "flex-start"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 64,
+      height: 64,
+      background: "#000",
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 56,
+      height: 56,
+      background: "#fff",
+      display: "grid",
+      gridTemplateColumns: "repeat(7,1fr)",
+      gap: "1px",
+      padding: "4px"
+    }
+  }, [...Array(49)].map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      background: Math.random() > 0.5 ? "#000" : "#fff"
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "11px",
+      color: "#555",
+      lineHeight: 1.7
+    }
+  }, "This is an electronic receipt of a transaction and does not require any signature. The authenticity of transaction can be confirmed with the Bank.", /*#__PURE__*/React.createElement("br", null), "For any other assistance, kindly call True Serve on 0700 3233 5489 or email true.serve@fidelitybank.ng")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "22px",
+      borderTop: "2px solid #00a651",
+      paddingTop: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#00a651",
+      fontWeight: 700,
+      fontSize: "14px"
+    }
+  }, "Bank With IVY On WhatsApp"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#555",
+      fontSize: "12px"
+    }
+  }, "Chat with IVY today on ", /*#__PURE__*/React.createElement("strong", null, "09030000302"), " to get your banking needs sorted instantly")));
+}
+
+// ── MTN MoMo ──────────────────────────────────────────────────────────────────
+function MoMoReceipt({
+  data
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      fontFamily: "Arial,sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      padding: "20px 24px 10px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 36,
+      height: 36,
+      borderRadius: "50%",
+      background: "#ffcc00",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "20px"
+    }
+  }, "M")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#009fdb",
+      fontWeight: 800,
+      fontSize: "16px"
+    }
+  }, "MoMo"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#999",
+      fontSize: "9px"
+    }
+  }, "from MTN")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "0 24px 20px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontWeight: 800,
+      fontSize: "20px",
+      marginBottom: "20px"
+    }
+  }, "Transaction Receipt"), [["Date and Time:", data.dateTime], ["Recipient Name:", data.recipientName], ["Recipient Number:", data.recipientAcct], ["Sender:", data.senderName], ["Amount:", `GHS ${data.amount}`], ["Transaction ID:", data.txnNo], ["Transaction Type:", "MoMo wallet"], ["Status:", data.status || "Successful"]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    style: {
+      display: "flex",
+      padding: "10px 0",
+      borderBottom: "1px solid #f5f5f5"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#111",
+      fontWeight: 700,
+      fontSize: "13px",
+      minWidth: "160px",
+      flexShrink: 0
+    }
+  }, l), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#333",
+      fontSize: "13px"
+    }
+  }, v))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "20px",
+      fontSize: "11px",
+      color: "#777",
+      lineHeight: 1.8
+    }
+  }, "If you need more information or have any questions about this payment, please contact the sender.", /*#__PURE__*/React.createElement("br", null), "Please check your account to confirm you have received this payment."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#111",
+      fontWeight: 700,
+      fontSize: "12px"
+    }
+  }, "Disclaimer"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "10px",
+      color: "#888",
+      lineHeight: 1.7,
+      marginTop: "6px"
+    }
+  }, "Your transaction has been successfully processed and the beneficiary's account will be credited. The completion of any transfer/transaction is subject to other factors including (but not limited to) transaction errors, delayed transmission, incomplete information, interruptions, transmission blackout, fluctuations on the network/internet, glitch, delayed information, or other circumstances beyond the control of MoMo which may impact on the transaction and for which MoMo is not liable."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "12px",
+      fontSize: "11px",
+      color: "#555"
+    }
+  }, "Yours sincerely,", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "The MoMo Team")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#ffcc00",
+      padding: "10px 24px",
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "10px",
+      color: "#333",
+      fontWeight: 600
+    }
+  }, "MTN (PTY) LTD is an authorised Financial Service Provider. FSP license number: 44774"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "10px",
+      color: "#333"
+    }
+  }, "Website: https://www.momo.mtn.com")));
+}
+
+// ── RECEIPT CONTROLLER ────────────────────────────────────────────────────────
+function PaymentGen() {
+  const ref = React.useRef();
+  const [wmRemoved, setWmRemoved] = React.useState(false);
+  const [showWmModal, setShowWmModal] = React.useState(false);
+  const BANKS = [{
+    id: "opay",
+    name: "OPay"
+  }, {
+    id: "firstbank",
+    name: "FirstBank"
+  }, {
+    id: "gtbank",
+    name: "GTBank"
+  }, {
+    id: "kuda",
+    name: "Kuda Bank"
+  }, {
+    id: "moniepoint",
+    name: "Moniepoint"
+  }, {
+    id: "access",
+    name: "Access Bank"
+  }, {
+    id: "fidelity",
+    name: "Fidelity Bank"
+  }, {
+    id: "momo",
+    name: "MTN MoMo"
+  }];
+  const [bank, setBank] = React.useState("opay");
+  const [data, setData] = React.useState({
+    amount: "50,000.00",
+    amountWords: "Fifty Thousand Naira Only",
+    status: "Successful",
+    dateTime: "Jun 22, 2026 10:42:10",
+    recipientName: "SAMUEL IZUCHUKWU NWOKOMA",
+    recipientAcct: "9059263212",
+    recipientBank: "PAYCOM (OPAY)",
+    recipientBankCode: "OPY",
+    senderName: "VICTOR ALI AGBO",
+    senderBank: "OPay",
+    senderPhone: "803****907",
+    fromAcct: "****38688",
+    txnType: "Interbank Transfer",
+    txnNo: "260621020100674293775464",
+    sessionId: "100004260621140627163217994845",
+    narration: "None",
+    businessName: "",
+    time: "10:42 AM"
+  });
+  const set = (k, v) => setData(d => ({
+    ...d,
+    [k]: v
+  }));
+  const fields = [["Amount", "amount"], ["Amount in Words", "amountWords"], ["Status", "status"], ["Date & Time", "dateTime"], ["Recipient Name", "recipientName"], ["Recipient Bank", "recipientBank"], ["Recipient Acct", "recipientAcct"], ["Sender Name", "senderName"], ["Sender Bank", "senderBank"], ["Sender Phone/Acct", "senderPhone"], ["From (masked)", "fromAcct"], ["Transaction Type", "txnType"], ["Reference / Txn No.", "txnNo"], ["Session ID", "sessionId"], ["Narration", "narration"]];
+  const renderReceipt = () => {
+    if (bank === "opay") return /*#__PURE__*/React.createElement(OPayReceipt, {
+      data: data
+    });
+    if (bank === "firstbank") return /*#__PURE__*/React.createElement(FirstBankReceipt, {
+      data: data
+    });
+    if (bank === "gtbank") return /*#__PURE__*/React.createElement(GTBankReceipt, {
+      data: data
+    });
+    if (bank === "kuda") return /*#__PURE__*/React.createElement(KudaReceipt, {
+      data: data
+    });
+    if (bank === "moniepoint") return /*#__PURE__*/React.createElement(MoniepointReceipt, {
+      data: data
+    });
+    if (bank === "access") return /*#__PURE__*/React.createElement(AccessReceipt, {
+      data: data
+    });
+    if (bank === "fidelity") return /*#__PURE__*/React.createElement(FidelityReceipt, {
+      data: data
+    });
+    if (bank === "momo") return /*#__PURE__*/React.createElement(MoMoReceipt, {
+      data: data
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Select Bank / Wallet"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "8px"
+    }
+  }, BANKS.map(b => /*#__PURE__*/React.createElement("button", {
+    key: b.id,
+    onClick: () => setBank(b.id),
+    style: {
+      padding: "7px 14px",
+      borderRadius: "20px",
+      border: `1.5px solid ${bank === b.id ? T.accent : T.border}`,
+      background: bank === b.id ? T.accentGlow : "transparent",
+      color: bank === b.id ? T.accentLight : T.muted,
+      fontWeight: bank === b.id ? 700 : 400,
+      fontSize: "13px",
+      cursor: "pointer"
+    }
+  }, b.name)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "10px",
+      marginBottom: "16px"
+    }
+  }, fields.map(([label, key]) => /*#__PURE__*/React.createElement("div", {
+    key: key
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, label), /*#__PURE__*/React.createElement("input", {
+    value: data[key],
+    onChange: e => set(key, e.target.value),
+    style: inp
+  })))), /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    style: {
+      position: "relative",
+      borderRadius: "8px",
+      overflow: "hidden",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.35)"
+    }
+  }, renderReceipt(), /*#__PURE__*/React.createElement(WM, {
+    removed: wmRemoved,
+    onRemoveClick: () => setShowWmModal(true)
+  })), showWmModal && /*#__PURE__*/React.createElement(RemoveWMModal, {
+    onClose: () => setShowWmModal(false),
+    onRemoved: () => setWmRemoved(true)
+  }), /*#__PURE__*/React.createElement(SaveBar, {
+    previewRef: ref,
+    filename: `${bank}-receipt-prank`,
+    wmRemoved: wmRemoved,
+    onWmRemoved: () => setWmRemoved(true),
+    onOpenModal: () => setShowWmModal(true)
+  }));
+}
+
+// ════════════════════════════════════════════════════════════════
+// FACEBOOK GENERATOR
+// ════════════════════════════════════════════════════════════════
+function FacebookGen() {
+  const ref = React.useRef();
+  const imgRef = React.useRef();
+  const [wmRemoved, setWmRemoved] = React.useState(false);
+  const [showWmModal, setShowWmModal] = React.useState(false);
+  const [name, setName] = React.useState("Mega Reigns");
+  const [avatar, setAvatar] = React.useState(null);
+  const [postText, setPostText] = React.useState("I just withdrew 3.4 million.\n\nThis is for my Sunday's lunch 😂💰");
+  const [time, setTime] = React.useState("17h");
+  const [likes, setLikes] = React.useState("1.2K");
+  const [comments, setComments] = React.useState("348");
+  const [shares, setShares] = React.useState("89");
+  const [verified, setVerified] = React.useState(false);
+  const [postImage, setPostImage] = React.useState(null);
+  const [statusTime, setStatusTime] = React.useState("6:23");
+  const [notifCount, setNotifCount] = React.useState("15+");
+  const [fakeComments, setFakeComments] = React.useState([{
+    id: 1,
+    name: "Chisom Blessing",
+    text: "Congratulations bro! 🎉🎊",
+    time: "1h",
+    avatar: null
+  }, {
+    id: 2,
+    name: "Emeka Okafor",
+    text: "This guy ehn 😂😂 God when",
+    time: "45m",
+    avatar: null
+  }, {
+    id: 3,
+    name: "Sandra Nwosu",
+    text: "You too much! Treat us o 🙏❤️",
+    time: "20m",
+    avatar: null
+  }]);
+  const [newCmt, setNewCmt] = React.useState("");
+  const [newCmtName, setNewCmtName] = React.useState("");
+  const [newCmtAvatar, setNewCmtAvatar] = React.useState(null);
+  const cmtAvatarRef = React.useRef();
+  const addComment = () => {
+    if (!newCmt.trim() || !newCmtName.trim()) return;
+    setFakeComments(p => [...p, {
+      id: Date.now(),
+      name: newCmtName,
+      text: newCmt,
+      time: "Just now",
+      avatar: newCmtAvatar
+    }]);
+    setNewCmt("");
+    setNewCmtName("");
+    setNewCmtAvatar(null);
+  };
+  const removeComment = id => setFakeComments(p => p.filter(c => c.id !== id));
+  const handlePostImg = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => setPostImage(ev.target.result);
+    r.readAsDataURL(f);
+  };
+  const avatarBg = `hsl(${name.charCodeAt(0) * 17 % 360},55%,42%)`;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "10px",
+      marginBottom: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Full Name"), /*#__PURE__*/React.createElement("input", {
+    value: name,
+    onChange: e => setName(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Time Ago"), /*#__PURE__*/React.createElement("input", {
+    value: time,
+    onChange: e => setTime(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Likes"), /*#__PURE__*/React.createElement("input", {
+    value: likes,
+    onChange: e => setLikes(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Comments"), /*#__PURE__*/React.createElement("input", {
+    value: comments,
+    onChange: e => setComments(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Shares"), /*#__PURE__*/React.createElement("input", {
+    value: shares,
+    onChange: e => setShares(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Clock Time"), /*#__PURE__*/React.createElement("input", {
+    value: statusTime,
+    onChange: e => setStatusTime(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Notif Badge"), /*#__PURE__*/React.createElement("input", {
+    value: notifCount,
+    onChange: e => setNotifCount(e.target.value),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      paddingTop: "22px"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: verified,
+    onChange: e => setVerified(e.target.checked),
+    id: "vfy",
+    style: {
+      width: 16,
+      height: 16
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "vfy",
+    style: {
+      color: T.text,
+      fontSize: "13px",
+      cursor: "pointer"
+    }
+  }, "Verified ✓"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Post Text"), /*#__PURE__*/React.createElement("textarea", {
+    value: postText,
+    onChange: e => setPostText(e.target.value),
+    style: {
+      ...inp,
+      minHeight: "80px",
+      resize: "vertical",
+      fontFamily: "inherit"
+    }
+  })), /*#__PURE__*/React.createElement(AvatarPicker, {
+    label: "Profile Photo",
+    image: avatar,
+    onImage: setAvatar,
+    initials: name.charAt(0),
+    bgColor: avatarBg
+  }), /*#__PURE__*/React.createElement("div", {
+    onClick: () => imgRef.current.click(),
+    style: {
+      background: T.bg,
+      border: `1px dashed ${T.border}`,
+      borderRadius: "10px",
+      padding: "14px",
+      textAlign: "center",
+      cursor: "pointer",
+      marginBottom: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "22px",
+      marginBottom: "4px"
+    }
+  }, postImage ? "🖼️ ✅" : "🖼️"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "13px"
+    }
+  }, postImage ? "Post image set — tap to change" : "Add post image (optional)"), /*#__PURE__*/React.createElement("input", {
+    ref: imgRef,
+    type: "file",
+    accept: "image/*",
+    onChange: handlePostImg,
+    style: {
+      display: "none"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    style: {
+      overflow: "hidden",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+      fontFamily: "Helvetica,Arial,sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement(StatusBar, {
+    time: statusTime,
+    dark: false
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      padding: "6px 14px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottom: "1px solid #ddd"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.fb,
+      fontWeight: 900,
+      fontSize: "26px",
+      fontFamily: "Georgia,serif"
+    }
+  }, "facebook"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "8px"
+    }
+  }, ["M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z", "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"].map((path, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      width: 34,
+      height: 34,
+      borderRadius: "50%",
+      background: "#e4e6eb",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: "#050505"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: path
+  })))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      display: "flex",
+      borderBottom: "2px solid #f0f2f5"
+    }
+  }, [{
+    path: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+    badge: notifCount,
+    active: true
+  },
+  // Home
+  {
+    path: "M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z",
+    badge: null,
+    active: false
+  },
+  // People
+  {
+    path: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z",
+    badge: null,
+    active: false
+  },
+  // Messenger
+  {
+    path: "M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z",
+    badge: notifCount,
+    active: false
+  },
+  // Video (reels)
+  {
+    path: "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
+    badge: null,
+    active: false
+  },
+  // Bell
+  {
+    path: "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z",
+    badge: null,
+    active: false
+  } // Profile
+  ].map(({
+    path,
+    badge,
+    active
+  }, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      flex: 1,
+      padding: "8px 0",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      borderBottom: active ? `3px solid ${T.fb}` : "3px solid transparent"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "22",
+    height: "22",
+    viewBox: "0 0 24 24",
+    fill: active ? T.fb : "#65676b"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: path
+  })), badge && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "4px",
+      right: "18%",
+      background: T.danger,
+      color: "#fff",
+      fontSize: "9px",
+      fontWeight: 700,
+      padding: "1px 4px",
+      borderRadius: "10px",
+      minWidth: "16px",
+      textAlign: "center"
+    }
+  }, badge)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "10px 14px",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement(Avatar, {
+    image: avatar,
+    size: 42,
+    initials: name.charAt(0),
+    bgColor: avatarBg
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 12,
+      height: 12,
+      borderRadius: "50%",
+      background: "#31a24c",
+      border: "2px solid #fff"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "4px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#050505",
+      fontWeight: 700,
+      fontSize: "15px"
+    }
+  }, name), verified && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.fb,
+      fontSize: "13px",
+      fontWeight: 700
+    }
+  }, "✓")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#65676b",
+      fontSize: "12px",
+      display: "flex",
+      alignItems: "center",
+      gap: "3px"
+    }
+  }, /*#__PURE__*/React.createElement("span", null, time), /*#__PURE__*/React.createElement("span", null, "·"), /*#__PURE__*/React.createElement("span", null, "🌍"))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "22px",
+      fontWeight: 700
+    }
+  }, "···"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "16px"
+    }
+  }, "✕")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "0 14px 12px",
+      color: "#050505",
+      fontSize: "15px",
+      lineHeight: 1.55,
+      whiteSpace: "pre-line"
+    }
+  }, postText), postImage && /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: "100%",
+      maxHeight: "260px",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: postImage,
+    style: {
+      width: "100%",
+      objectFit: "cover"
+    },
+    alt: "post"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "6px 14px",
+      display: "flex",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "2px"
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "👍"), /*#__PURE__*/React.createElement("span", null, "❤️"), /*#__PURE__*/React.createElement("span", null, "😂"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "13px",
+      marginLeft: "4px"
+    }
+  }, likes)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "13px"
+    }
+  }, comments, " comments · ", shares, " shares")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      margin: "0 14px",
+      height: "1px",
+      background: "#e4e6eb"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      padding: "2px 4px 8px"
+    }
+  }, [{
+    path: "M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z",
+    label: "Like",
+    color: "#1877f2"
+  }, {
+    path: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z",
+    label: "Comment",
+    color: "#65676b"
+  }, {
+    path: "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z",
+    label: "Share",
+    color: "#65676b"
+  }].map(({
+    path,
+    label,
+    color
+  }) => /*#__PURE__*/React.createElement("button", {
+    key: label,
+    style: {
+      flex: 1,
+      padding: "8px 4px",
+      background: "none",
+      border: "none",
+      color: "#65676b",
+      fontWeight: 600,
+      fontSize: "13px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "5px",
+      borderRadius: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: color
+  }, /*#__PURE__*/React.createElement("path", {
+    d: path
+  })), /*#__PURE__*/React.createElement("span", null, label)))), fakeComments.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid #e4e6eb",
+      padding: "10px 14px",
+      background: "#f0f2f5"
+    }
+  }, fakeComments.map(cmt => /*#__PURE__*/React.createElement("div", {
+    key: cmt.id,
+    style: {
+      display: "flex",
+      gap: "8px",
+      marginBottom: "10px",
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: "50%",
+      flexShrink: 0,
+      overflow: "hidden",
+      background: `hsl(${cmt.name.charCodeAt(0) * 23 % 360},50%,45%)`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: "13px"
+    }
+  }, cmt.avatar ? /*#__PURE__*/React.createElement("img", {
+    src: cmt.avatar,
+    style: {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover"
+    },
+    alt: ""
+  }) : cmt.name.charAt(0)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff",
+      borderRadius: "16px",
+      padding: "7px 12px",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+      display: "inline-block",
+      maxWidth: "100%"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#050505",
+      fontWeight: 700,
+      fontSize: "12px"
+    }
+  }, cmt.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#050505",
+      fontSize: "13px",
+      lineHeight: 1.4
+    }
+  }, cmt.text)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "12px",
+      marginTop: "3px",
+      padding: "0 4px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "11px"
+    }
+  }, cmt.time), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "11px",
+      fontWeight: 600
+    }
+  }, "Like"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#65676b",
+      fontSize: "11px",
+      fontWeight: 600
+    }
+  }, "Reply"))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeComment(cmt.id),
+    className: "no-capture",
+    style: {
+      position: "absolute",
+      top: "-6px",
+      right: "-6px",
+      background: T.danger,
+      color: "#fff",
+      border: "none",
+      borderRadius: "50%",
+      width: "16px",
+      height: "16px",
+      fontSize: "9px",
+      cursor: "pointer",
+      lineHeight: 1,
+      zIndex: 5
+    }
+  }, "×"))))), /*#__PURE__*/React.createElement(WM, {
+    removed: wmRemoved,
+    onRemoveClick: () => setShowWmModal(true)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.bg,
+      border: `1px solid ${T.border}`,
+      borderRadius: "10px",
+      padding: "12px",
+      marginTop: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "11px",
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: "10px"
+    }
+  }, "💬 Add Fake Comment"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      marginBottom: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 36,
+      height: 36,
+      borderRadius: "50%",
+      overflow: "hidden",
+      background: `hsl(${newCmtName.charCodeAt(0) * 23 % 360 || 200},50%,45%)`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: "14px"
+    }
+  }, newCmtAvatar ? /*#__PURE__*/React.createElement("img", {
+    src: newCmtAvatar,
+    style: {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover"
+    },
+    alt: ""
+  }) : newCmtName.charAt(0) || "?"), /*#__PURE__*/React.createElement("div", {
+    onClick: () => cmtAvatarRef.current.click(),
+    style: {
+      position: "absolute",
+      inset: 0,
+      borderRadius: "50%",
+      background: "rgba(0,0,0,0.35)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "pointer",
+      fontSize: "12px"
+    }
+  }, "📷"), /*#__PURE__*/React.createElement("input", {
+    ref: cmtAvatarRef,
+    type: "file",
+    accept: "image/*",
+    style: {
+      display: "none"
+    },
+    onChange: e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = ev => setNewCmtAvatar(ev.target.result);
+      r.readAsDataURL(f);
+    }
+  })), /*#__PURE__*/React.createElement("input", {
+    value: newCmtName,
+    onChange: e => setNewCmtName(e.target.value),
+    style: {
+      ...inp,
+      flex: 1
+    },
+    placeholder: "Commenter name"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: newCmt,
+    onChange: e => setNewCmt(e.target.value),
+    style: {
+      ...inp,
+      flex: 1
+    },
+    placeholder: "Comment text...",
+    onKeyDown: e => e.key === "Enter" && addComment()
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: addComment,
+    style: {
+      padding: "9px 16px",
+      background: T.fb,
+      color: "#fff",
+      border: "none",
+      borderRadius: "8px",
+      fontWeight: 700,
+      fontSize: "14px",
+      cursor: "pointer"
+    }
+  }, "Add"))), showWmModal && /*#__PURE__*/React.createElement(RemoveWMModal, {
+    onClose: () => setShowWmModal(false),
+    onRemoved: () => setWmRemoved(true)
+  }), /*#__PURE__*/React.createElement(SaveBar, {
+    previewRef: ref,
+    filename: "facebook-prank",
+    wmRemoved: wmRemoved,
+    onWmRemoved: () => setWmRemoved(true),
+    onOpenModal: () => setShowWmModal(true)
+  }));
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN APP
+// ════════════════════════════════════════════════════════════════
+const TABS = [{
+  id: "whatsapp",
+  label: "WhatsApp",
+  icon: "💬"
+}, {
+  id: "payment",
+  label: "Receipt",
+  icon: "🧾"
+}, {
+  id: "facebook",
+  label: "Facebook",
+  icon: "👥"
+}];
+function PrankForge() {
+  return /*#__PURE__*/React.createElement(ProProvider, null, /*#__PURE__*/React.createElement(AppInner, null));
+}
+function AppInner() {
+  const {
+    isPro
+  } = usePro();
+  const [accepted, setAccepted] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState("whatsapp");
+  if (!accepted) return /*#__PURE__*/React.createElement(Disclaimer, {
+    onAccept: () => setAccepted(true)
+  });
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, `* { box-sizing:border-box; } body { margin:0; } @keyframes spin { to { transform:rotate(360deg); } }`), /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      background: T.bg,
+      color: T.text,
+      fontFamily: "'Segoe UI',system-ui,sans-serif",
+      paddingBottom: "40px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: `linear-gradient(135deg,${T.accent} 0%,#4f46e5 100%)`,
+      padding: "18px 20px 22px",
+      boxShadow: "0 4px 24px rgba(124,58,237,0.4)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "26px"
+    }
+  }, "🎭"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      fontSize: "22px",
+      letterSpacing: "-0.02em"
+    }
+  }, "PrankForge"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "12px",
+      opacity: 0.8
+    }
+  }, "Prank your friends — responsibly 😄")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginLeft: "auto"
+    }
+  }, isPro ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "linear-gradient(135deg,#f59e0b,#d97706)",
+      padding: "4px 12px",
+      borderRadius: "20px",
+      fontSize: "12px",
+      fontWeight: 800
+    }
+  }, "⭐ PRO") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "rgba(255,255,255,0.15)",
+      padding: "4px 10px",
+      borderRadius: "20px",
+      fontSize: "11px",
+      fontWeight: 700
+    }
+  }, "FOR FUN ONLY")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      background: T.surface,
+      borderBottom: `1px solid ${T.border}`,
+      position: "sticky",
+      top: 0,
+      zIndex: 10
+    }
+  }, TABS.map(tab => /*#__PURE__*/React.createElement("button", {
+    key: tab.id,
+    onClick: () => setActiveTab(tab.id),
+    style: {
+      flex: 1,
+      padding: "12px 8px",
+      background: "none",
+      border: "none",
+      borderBottom: activeTab === tab.id ? `3px solid ${T.accent}` : "3px solid transparent",
+      color: activeTab === tab.id ? T.accentLight : T.muted,
+      fontWeight: activeTab === tab.id ? 700 : 500,
+      fontSize: "13px",
+      cursor: "pointer",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "2px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "18px"
+    }
+  }, tab.icon), tab.label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "18px 16px",
+      maxWidth: "480px",
+      margin: "0 auto"
+    }
+  }, activeTab === "whatsapp" && /*#__PURE__*/React.createElement(WhatsAppGen, null), activeTab === "payment" && /*#__PURE__*/React.createElement(PaymentGen, null), activeTab === "facebook" && /*#__PURE__*/React.createElement(FacebookGen, null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "28px",
+      background: T.surface,
+      border: `1px dashed ${T.border}`,
+      borderRadius: "14px",
+      padding: "20px",
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "22px",
+      marginBottom: "8px"
+    }
+  }, "🔜"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.text,
+      fontWeight: 700,
+      marginBottom: "6px"
+    }
+  }, "Coming Soon"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.muted,
+      fontSize: "13px"
+    }
+  }, "Fake SMS • Instagram DM • Fake Email • Flight Ticket • NYSC Letter • University Admission"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "12px",
+      display: "inline-block",
+      background: T.accentGlow,
+      border: `1px solid rgba(124,58,237,0.3)`,
+      color: T.accentLight,
+      padding: "6px 14px",
+      borderRadius: "20px",
+      fontSize: "12px",
+      fontWeight: 600
+    }
+  }, "⭐ PRO unlocks all premium templates")), /*#__PURE__*/React.createElement(AdBanner, null))));
+} // end AppInner
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PrankForge));</script>
+</body>
+</html>
